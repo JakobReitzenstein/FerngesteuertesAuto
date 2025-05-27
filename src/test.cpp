@@ -22,10 +22,33 @@ void loop() {
   Serial.println("All pins set HIGH");
   delay(1000);
   
-  //sr.setAllLow(); // set all pins LOW
-  //Serial.println("All pins set LOW");
-  //delay(1000);
+  sr.setAllLow(); // set all pins LOW
+  Serial.println("All pins set LOW");
+  delay(1000);
 
+  sr.set(0, HIGH); // set pin 0 HIGH
+  Serial.println("Pin 0 set HIGH");
+  delay(1000);
+  sr.set(0, LOW); // set pin 0 LOW
+  Serial.println("Pin 0 set LOW");
+  sr.set(1, HIGH); // set pin 1 HIGH
+  Serial.println("Pin 1 set HIGH");   
+  delay(1000);
+  sr.set(1, LOW); // set pin 1 LOW
+  Serial.println("Pin 1 set LOW");
+  delay(1000);
+  sr.set(2, HIGH); // set pin 2 HIGH
+  Serial.println("Pin 2 set HIGH");
+  delay(1000);
+  sr.set(2, LOW); // set pin 2 LOW
+  Serial.println("Pin 2 set LOW");
+  delay(1000);
+  sr.set(3, HIGH); // set pin 3 HIGH
+  Serial.println("Pin 3 set HIGH");
+  delay(1000);
+  sr.set(3, LOW); // set pin 3 LOW
+  Serial.println("Pin 3 set LOW");
+  delay(1000);
   /*
   // setting single pins
   for (int i = 0; i < 8; i++) {

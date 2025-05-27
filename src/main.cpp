@@ -7,7 +7,7 @@
 // Receiver ESP32 MAC Address
 uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  // <--- replace if needed
 
-ShiftRegister74HC595<1> sr(12, 14, 13); // Data, Clock, Latch
+ShiftRegister74HC595<1> sr(13, 14, 16); // Data, Clock, Latch
 
 String state = "fetch_Data";
 
@@ -39,15 +39,18 @@ Servo myServo;
 
 int servoPin = 18;
 int MotorPin = 33;
-int Blinkerlinks = 25;
-int BlinkerRechts = 26;
+int BlinkerlinksPin = 25;
+int BlinkerRechtsPin = 26;
+int FernlichtPin = 4;
+int BremslichtPin = 19;
+
 int dataValid;
 int checknum = 0;
 int checkOk = 0;
 
 void ONDataRecv(const uint8_t * mac, const uint8_t * incomingData, int len) {
   memcpy(&IN_data, incomingData, sizeof(IN_data));
-  Serial.print("Bytes received: ");
+  /*Serial.print("Bytes received: ");
   Serial.println(len);
   Serial.print("Beschleunigung: ");
   Serial.println(IN_data.beschleunigung);
@@ -61,10 +64,16 @@ void ONDataRecv(const uint8_t * mac, const uint8_t * incomingData, int len) {
   Serial.println(IN_data.ton);
   Serial.print("hupe: ");
   Serial.println(IN_data.hupe);
+  */
   dataValid = 1;
 }
 
 void lenkenControl() {
+  /*
+  int lenken ist ein Wert von 0 bis 100, der den Lenkwinkel steuert
+  Servo dann auf berechneten Winkel einstellen
+  */
+
   int winkel = (lenken * 180) / 100;
   Serial.print("Winkel: ");
   Serial.println(winkel);
@@ -72,19 +81,49 @@ void lenkenControl() {
 }
 
 void beschleunigungControl() {
-  ledcWrite(MotorPin, beschleunigung*255/100);
+  /*
+  Beschleunigung: PWM Signal an MotorPin ausgeben
+  */
+  ledcWrite(0, beschleunigung*255/100);
 }
 
 void lichterControl() {
+  /*
+  Blinker: Trigger ausgeben, nach 1ms wieder LOW
+  Blinker == 1 : Blinker links
+  Blinker == 2 : Blinker rechts
+  
+  Lichter == 1: Bremslicht
+  Lichter == 2: Fernlicht
+  Lichter ==  3: Bremslicht und Fernlicht
+
+  */
   if (blinker == 1) {
-    digitalWrite(Blinkerlinks, HIGH);
+    digitalWrite(BlinkerlinksPin, HIGH);
     delay(1);
-    digitalWrite(Blinkerlinks, LOW);
+    digitalWrite(BlinkerlinksPin, LOW);
   }
   if (blinker == 2) {
-    digitalWrite(BlinkerRechts, HIGH);
+    digitalWrite(BlinkerRechtsPin, HIGH);
     delay(1);
-    digitalWrite(BlinkerRechts, LOW);
+    digitalWrite(BlinkerRechtsPin, LOW);
+  }
+
+  if (lichter == 1) {
+    digitalWrite(BremslichtPin, HIGH);
+    digitalWrite(FernlichtPin, LOW);
+  }
+  else if (lichter == 2) {
+    digitalWrite(FernlichtPin, HIGH);
+    digitalWrite(BremslichtPin, LOW);
+  }
+  else if (lichter == 3) {
+    digitalWrite(BremslichtPin, HIGH);
+    digitalWrite(FernlichtPin, HIGH);
+  } 
+  else {
+    digitalWrite(BremslichtPin, LOW);
+    digitalWrite(FernlichtPin, LOW);
   }
 }
 
@@ -115,14 +154,24 @@ void setup() {
   }
 
   myServo.attach(servoPin);
-  pinMode(Blinkerlinks, OUTPUT);
-  pinMode(BlinkerRechts, OUTPUT);
+  pinMode(BlinkerlinksPin, OUTPUT);
+  pinMode(BlinkerRechtsPin, OUTPUT);
 
-  ledcAttachPin(MotorPin, 0);
   ledcSetup(0, 5000, 8); // Channel 0, 5kHz frequency, 8-bit resolution
+  ledcAttachPin(MotorPin, 0);
 }
 
 void loop() {
+  if (state == "initialize") {
+    // Initialisierung der Verbindung zut Fernbedinung
+    // Senden einer random Zahl, wenn die zahl wieder empfangen wird, ist die Verbindung hergestellt
+    checknum = esp_random();
+    OUT_data.check = checknum;
+    esp_now_send(receiverAddress, (uint8_t *)&OUT_data, sizeof(OUT_data));
+    Serial.println("Initialize sent");
+    state = "fetch_Data";
+  }
+
   if (state == "fetch_Data") {
     if (dataValid == 1) {
       beschleunigung  = IN_data.beschleunigung;
@@ -131,6 +180,7 @@ void loop() {
       blinker         = IN_data.blinker;
       ton             = IN_data.ton;
       hupe            = IN_data.hupe;
+      Serial.println("Daten erhalten");
       state = "control";
     }
     dataValid = 0;
@@ -145,23 +195,30 @@ void loop() {
     lichterControl();
     // Steuerung ton/Hupe
     tonControl();
-    state = "callback";
+    Serial.println("Control fertig");
+    state = "sendcallback";
   }
 
   if (state == "sendcallback") {
     checknum = esp_random();
     OUT_data.check = checknum;
     esp_now_send(receiverAddress, (uint8_t *)&OUT_data, sizeof(OUT_data));
-    Serial1.println("Callback sent");
+    Serial.println("Callback sent");
     state = "waitForCallback"; 
   }
 
   if (state == "waitForCallback") {
+    /*Serial.print("checknum: ");
+    Serial.println(checknum);
+    Serial.print("IN_data.check: ");
+    Serial.println(IN_data.check);
+    */
+    // TODO: wenn callback zu lange dauert, StatusLed setzen und Fehlerbehandlung
+
     if (IN_data.check == checknum) {
       Serial.println("Check OK");
       state = "fetch_Data";
-    } else {
-      Serial.println("Check failed");
     }
   }
+
 }

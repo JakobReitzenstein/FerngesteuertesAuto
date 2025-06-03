@@ -7,8 +7,6 @@
 // Receiver ESP32 MAC Address
 uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  // <--- replace if needed
 
-ShiftRegister74HC595<1> sr(13, 14, 16); // Data, Clock, Latch
-
 String state = "fetch_Data";
 
 int beschleunigung;
@@ -37,14 +35,35 @@ struct_message_IN   IN_data;
 struct_message_OUT  OUT_data;
 Servo myServo;
 
+/* Pin denfinitionen: 
+  Servo Pin: GPIO 18
+  Motor Pin: GPIO 33
+  Blinker links Pin: GPIO 25
+  Blinker rechts Pin: GPIO 26
+  Fernlicht Pin: GPIO 4
+  Bremslicht Pin: GPIO 19
+  Abstandsensor Trigger Pin: GPIO 37
+  Abstandsensor Echo Pin: GPIO 35
+  Sebastians Lösung Pin: GPIO 34
+  Shift Register Pins: 
+    GPIO 13 (Data), 
+    GPIO 14 (Clock), 
+    GPIO 16 (Latch)
+*/
+
 int servoPin = 18;
-int MotorPin = 33;
+int MotorVorPin = 32;
+int MotorBackPin = 33;
 int BlinkerlinksPin = 25;
 int BlinkerRechtsPin = 26;
 int FernlichtPin = 4;
 int BremslichtPin = 19;
+int AbstandsensensorTriggerPin = 17;
+int AbstandsensensorEchoPin = 35;
+int SebastianInPin = 34; 
+ShiftRegister74HC595<1> sr(13, 14, 16); // Data, Clock, Latch
 
-int dataValid;
+int dataValid = 0;
 int checknum = 0;
 int checkOk = 0;
 
@@ -84,7 +103,23 @@ void beschleunigungControl() {
   /*
   Beschleunigung: PWM Signal an MotorPin ausgeben
   */
-  ledcWrite(0, beschleunigung*255/100);
+  if (beschleunigung < 50) {
+    // Beschleunigung < 50, Rückwärtsfahrt
+    int beschleunigungBack = (50 - beschleunigung) * 2; // Rückwärtsfahrt
+    ledcWrite(1, beschleunigungBack*255/100);
+    ledcWrite(0, 0);
+  }
+  else if (beschleunigung > 50) {
+    // Beschleunigung > 50, Vorwärtsfahrt
+    int beschleunigungVor = (beschleunigung - 50) * 2; // Vorwärtsfahrt
+    ledcWrite(0, beschleunigungVor*255/100);
+    ledcWrite(1, 0);
+  }
+  else {
+    // Beschleunigung == 50, Motor aus
+    ledcWrite(0, 0);
+    ledcWrite(1, 0);
+  }
 }
 
 void lichterControl() {
@@ -158,7 +193,9 @@ void setup() {
   pinMode(BlinkerRechtsPin, OUTPUT);
 
   ledcSetup(0, 5000, 8); // Channel 0, 5kHz frequency, 8-bit resolution
-  ledcAttachPin(MotorPin, 0);
+  ledcAttachPin(MotorVorPin, 0);
+  ledcSetup(1, 5000, 8); // Channel 1, 5kHz frequency, 8-bit resolution
+  ledcAttachPin(MotorBackPin, 1);
 }
 
 void loop() {
@@ -185,6 +222,11 @@ void loop() {
     }
     dataValid = 0;
   }
+
+  if (state == "checkAmp") {
+    // Sebastians eingang checken, wenn >2 V dann alles Aus
+  }
+
   if (state == "control") {
 
     // Steuerung Lenken

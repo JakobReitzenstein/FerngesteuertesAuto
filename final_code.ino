@@ -11,28 +11,49 @@ int scaleWithDeadzone(int value) {
   }
 }
 
-
-// Joystick pins — verified with your working setup
+// Joystick pins
 const int xPin = 35;       // X-axis (VRx)
 const int yPin = 33;       // Y-axis (VRy)
 const int buttonPin = 32;  // Button (SW)
 
 // Receiver ESP32 MAC Address
-uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  // <--- replace if needed
+uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  // replace if needed
 
-// Data structure for sending values
-typedef struct struct_message {
-  int x;
-  int y;
-  int button;
-} struct_message;
+// Structure to send
+typedef struct struct_message_out {
+  int beschleunigung;
+  int lenken;
+  int lichter;
+  int blinker;
+  int ton;
+  int hupe;
+  int check;
+} struct_message_out;
 
-struct_message data;
+// Structure to receive
+typedef struct struct_message_in {
+  int check;
+} struct_message_in;
+
+struct_message_out data;
+struct_message_in receivedData;
+
+// Callback function for receiving data
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  if (len == sizeof(struct_message_in)) {
+    memcpy(&receivedData, incomingData, sizeof(struct_message_in));
+    data.check = receivedData.check;
+    Serial.print("Received check value: ");
+    Serial.println(data.check);
+  } else {
+    Serial.println("Received unknown data");
+  }
+}
 
 void setup() {
   Serial.begin(115200);
 
-  // Init WiFi in station mode for ESP-NOW
+  // Init WiFi in station mode
   WiFi.mode(WIFI_STA);
 
   // Init ESP-NOW
@@ -52,6 +73,9 @@ void setup() {
     return;
   }
 
+  // Register receive callback
+  esp_now_register_recv_cb(OnDataRecv);
+
   // Button setup
   pinMode(buttonPin, INPUT_PULLUP);
 }
@@ -61,19 +85,18 @@ void loop() {
   int yRaw = analogRead(yPin);
   int buttonState = digitalRead(buttonPin);
 
-  data.x = scaleWithDeadzone(xRaw);
-  data.y = scaleWithDeadzone(yRaw);
-  data.button = (buttonState == LOW) ? 1 : 0;
+  data.beschleunigung = scaleWithDeadzone(xRaw);
+  data.lenken = scaleWithDeadzone(yRaw);
+  data.hupe = (buttonState == LOW) ? 1 : 0;
 
   esp_now_send(receiverAddress, (uint8_t *)&data, sizeof(data));
 
   Serial.print("X: ");
-  Serial.print(data.x);
+  Serial.print(xRaw);
   Serial.print("\tY: ");
-  Serial.print(data.y);
+  Serial.print(yRaw);
   Serial.print("\tButton: ");
-  Serial.println(data.button);
+  Serial.print(buttonState);
 
   delay(100);
 }
-

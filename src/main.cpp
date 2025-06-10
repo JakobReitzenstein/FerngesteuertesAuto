@@ -4,18 +4,6 @@
 #include <ShiftRegister74HC595.h>
 #include "esp_random.h"
 
-// Receiver ESP32 MAC Address
-uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  // <--- replace if needed
-
-String state = "fetch_Data";
-
-int beschleunigung;
-int lenken;
-int lichter;
-int blinker;
-int ton;
-int hupe; 
-
 typedef struct struct_message_IN {
   int beschleunigung;
   int lenken;
@@ -30,10 +18,23 @@ typedef struct struct_message_OUT {
   int check;
 } struct_message_OUT;
 
-
+int beschleunigung;
+int lenken;
+int lichter;
+int blinker;
+int ton;
+int hupe; 
+int dataValid = 0;
+int checknum = 0;
+int checkOk = 0;
+long dauer = 0;
 struct_message_IN   IN_data;
 struct_message_OUT  OUT_data;
 Servo myServo;
+String state = "fetch_Data"; 
+
+// Receiver ESP32 MAC Address
+uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xDF, 0x94};  
 
 /* Pin denfinitionen: 
   Servo Pin: GPIO 18
@@ -63,9 +64,9 @@ int AbstandsensensorEchoPin = 35;
 int SebastianInPin = 34; 
 ShiftRegister74HC595<1> sr(13, 14, 16); // Data, Clock, Latch
 
-int dataValid = 0;
-int checknum = 0;
-int checkOk = 0;
+
+
+
 
 void ONDataRecv(const uint8_t * mac, const uint8_t * incomingData, int len) {
   memcpy(&IN_data, incomingData, sizeof(IN_data));
@@ -168,6 +169,7 @@ void tonControl() {
 
 void setup() {
   Serial.begin(115200);
+  sr.setAllHigh();
 
   WiFi.mode(WIFI_STA);
 
@@ -200,8 +202,11 @@ void setup() {
 
 void loop() {
   if (state == "initialize") {
+    sr.setAllLow();
+    sr.set(0, HIGH);
     // Initialisierung der Verbindung zut Fernbedinung
     // Senden einer random Zahl, wenn die zahl wieder empfangen wird, ist die Verbindung hergestellt
+    dauer = millis();
     checknum = esp_random();
     OUT_data.check = checknum;
     esp_now_send(receiverAddress, (uint8_t *)&OUT_data, sizeof(OUT_data));
@@ -209,7 +214,9 @@ void loop() {
     state = "fetch_Data";
   }
 
-  if (state == "fetch_Data") {
+  else if (state == "fetch_Data") {
+    sr.setAllLow();
+    sr.set(1, HIGH);
     if (dataValid == 1) {
       beschleunigung  = IN_data.beschleunigung;
       lenken          = IN_data.lenken;
@@ -218,17 +225,23 @@ void loop() {
       ton             = IN_data.ton;
       hupe            = IN_data.hupe;
       Serial.println("Daten erhalten");
-      state = "control";
+      state = "CURRENT_CHECK";
+      dauer = millis();
     }
     dataValid = 0;
   }
 
-  if (state == "checkAmp") {
+  else if (state == "CURRENT_CHECK") {
+    sr.setAllLow();
+    sr.set(2, HIGH);
     // Sebastians eingang checken, wenn >2 V dann alles Aus
+
+    state = "control";
   }
 
-  if (state == "control") {
-
+  else if (state == "control") {
+    sr.setAllLow();
+    sr.set(3, HIGH);
     // Steuerung Lenken
     lenkenControl();
     // Steuerung Beschleunigung
@@ -241,7 +254,9 @@ void loop() {
     state = "sendcallback";
   }
 
-  if (state == "sendcallback") {
+  else if (state == "sendcallback") {
+    sr.setAllLow();
+    sr.set(4, HIGH);
     checknum = esp_random();
     OUT_data.check = checknum;
     esp_now_send(receiverAddress, (uint8_t *)&OUT_data, sizeof(OUT_data));
@@ -249,7 +264,9 @@ void loop() {
     state = "waitForCallback"; 
   }
 
-  if (state == "waitForCallback") {
+  else if (state == "waitForCallback") {
+    sr.setAllLow();
+    sr.set(5, HIGH);
     /*Serial.print("checknum: ");
     Serial.println(checknum);
     Serial.print("IN_data.check: ");
@@ -259,6 +276,9 @@ void loop() {
 
     if (IN_data.check == checknum) {
       Serial.println("Check OK");
+      dauer = millis() - dauer;
+      Serial.print("Zeit vergangen: ");
+      Serial.println(dauer);
       state = "fetch_Data";
     }
   }

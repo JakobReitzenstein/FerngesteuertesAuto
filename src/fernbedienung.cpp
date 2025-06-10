@@ -17,7 +17,7 @@ const int yPin = 33;       // Y-axis (VRy)
 const int buttonPin = 32;  // Button (SW)
 
 // Receiver ESP32 MAC Address
-uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xDF, 0x94};  // replace if needed
+uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  // replace if needed
 
 // Structure to send
 typedef struct struct_message_out {
@@ -97,8 +97,6 @@ void loop() {
   Serial.print(yRaw);
   Serial.print("\tButton: ");
   Serial.print(buttonState);
-  Serial.print("\tCheck: ");
-  Serial.println(data.check);
 
-  delay(100);
+  delay(35);
 }

@@ -267,11 +267,11 @@ void loop() {
   else if (state == "waitForCallback") {
     sr.setAllLow();
     sr.set(5, HIGH);
-    /*Serial.print("checknum: ");
-    Serial.println(checknum);
-    Serial.print("IN_data.check: ");
-    Serial.println(IN_data.check);
-    */
+    
+    //Serial.print("checknum: ");
+    //Serial.println(checknum);
+    //Serial.print("IN_data.check: ");
+    //Serial.println(IN_data.check);
     // TODO: wenn callback zu lange dauert, StatusLed setzen und Fehlerbehandlung
 
     if (IN_data.check == checknum) {
@@ -282,5 +282,4 @@ void loop() {
       state = "fetch_Data";
     }
   }
-
 }

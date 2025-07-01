@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "esp32_custom")(type "KiCad")(uri "C:/Users/trydo/Documents/KiCad/Custom_Libs/esp32_custom.pretty")(options "")(descr ""))
+  (lib (name "Panikraster_v2")(type "KiCad")(uri "${KIPRJMOD}/Panikraster_v2.pretty")(options "")(descr ""))
+)

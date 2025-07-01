@@ -98,5 +98,5 @@ void loop() {
   Serial.print("\tButton: ");
   Serial.print(buttonState);
 
-  delay(35);
+  delay(40);
 }

@@ -10,5 +10,7 @@ void setup() {
 }
 
 void loop() {
+  Serial.println("Warte 1 Sekunden...");
+  delay(1000); // 5 Sekunden warten
   // nichts
 }

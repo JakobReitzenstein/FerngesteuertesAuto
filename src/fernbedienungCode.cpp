@@ -17,7 +17,8 @@ const int yPin = 33;       // Y-axis (VRy)
 const int buttonPin = 32;  // Button (SW)
 
 // Receiver ESP32 MAC Address
-uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  // replace if needed
+uint8_t receiverAddress[] = {0xFC, 0xB4, 0x67, 0xCF, 0xA6, 0xAC};  //FC:B4:67:CF:A6:AC
+
 
 // Structure to send
 typedef struct struct_message_out {
@@ -49,6 +50,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     Serial.println("Received unknown data");
   }
 }
+
 
 void setup() {
   Serial.begin(115200);
@@ -98,5 +100,5 @@ void loop() {
   Serial.print("\tButton: ");
   Serial.print(buttonState);
 
-  delay(100);
+  delay(300);
 }

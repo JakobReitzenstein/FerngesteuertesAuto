@@ -28,13 +28,16 @@ int dataValid = 0;
 int checknum = 0;
 int checkOk = 0;
 long dauer = 0;
+long callbacktime = 0;
 struct_message_IN   IN_data;
 struct_message_OUT  OUT_data;
 Servo myServo;
 String state = "fetch_Data"; 
 
 // Receiver ESP32 MAC Address
-uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xDF, 0x94};  
+//uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  
+
+uint8_t receiverAddress[] = {0xFC, 0xB4, 0x67, 0xD1, 0x89, 0x70};  
 
 /* Pin denfinitionen: 
   Servo Pin: GPIO 18
@@ -45,7 +48,7 @@ uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xDF, 0x94};
   Bremslicht Pin: GPIO 19
   Abstandsensor Trigger Pin: GPIO 37
   Abstandsensor Echo Pin: GPIO 35
-  Sebastians Lösung Pin: GPIO 34
+  Current check Pin: GPIO 34
   Shift Register Pins: 
     GPIO 13 (Data), 
     GPIO 14 (Clock), 
@@ -61,8 +64,8 @@ int FernlichtPin = 4;
 int BremslichtPin = 19;
 int AbstandsensensorTriggerPin = 17;
 int AbstandsensensorEchoPin = 35;
-int SebastianInPin = 34; 
-ShiftRegister74HC595<1> sr(13, 14, 16); // Data, Clock, Latch
+int CCInPin = 34; 
+ShiftRegister74HC595<1> sr(14, 12, 13); // Data, Clock, Latch
 
 
 
@@ -104,15 +107,21 @@ void beschleunigungControl() {
   /*
   Beschleunigung: PWM Signal an MotorPin ausgeben
   */
+  Serial.print("Beschleunigung: ");
+  Serial.println(beschleunigung);
   if (beschleunigung < 50) {
     // Beschleunigung < 50, Rückwärtsfahrt
     int beschleunigungBack = (50 - beschleunigung) * 2; // Rückwärtsfahrt
+    Serial.print("Rückwärtsfahrt, Beschleunigung: ");
+    Serial.println(beschleunigungBack*255/100);
     ledcWrite(1, beschleunigungBack*255/100);
     ledcWrite(0, 0);
   }
   else if (beschleunigung > 50) {
     // Beschleunigung > 50, Vorwärtsfahrt
     int beschleunigungVor = (beschleunigung - 50) * 2; // Vorwärtsfahrt
+    Serial.print("Vorwärtsfahrt, Beschleunigung: ");
+    Serial.println(beschleunigungVor*255/100);
     ledcWrite(0, beschleunigungVor*255/100);
     ledcWrite(1, 0);
   }
@@ -173,6 +182,8 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
 
+  Serial.println("Start");
+
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
@@ -194,16 +205,16 @@ void setup() {
   pinMode(BlinkerlinksPin, OUTPUT);
   pinMode(BlinkerRechtsPin, OUTPUT);
 
-  ledcSetup(0, 5000, 8); // Channel 0, 5kHz frequency, 8-bit resolution
+  ledcSetup(0, 50, 8); // Channel 0, 50Hz frequency, 8-bit resolution
   ledcAttachPin(MotorVorPin, 0);
-  ledcSetup(1, 5000, 8); // Channel 1, 5kHz frequency, 8-bit resolution
+  ledcSetup(1, 50, 8); // Channel 1, 50Hz frequency, 8-bit resolution
   ledcAttachPin(MotorBackPin, 1);
 }
 
 void loop() {
   if (state == "initialize") {
     sr.setAllLow();
-    sr.set(0, HIGH);
+    sr.set(2, HIGH);
     // Initialisierung der Verbindung zut Fernbedinung
     // Senden einer random Zahl, wenn die zahl wieder empfangen wird, ist die Verbindung hergestellt
     dauer = millis();
@@ -235,6 +246,11 @@ void loop() {
     sr.setAllLow();
     sr.set(2, HIGH);
     // Sebastians eingang checken, wenn >2 V dann alles Aus
+    int currentCheck = analogReadMilliVolts(CCInPin);
+    if (currentCheck > 2000) { 
+      Serial.println("Current check failed, spannung >2");
+      state = "Error";
+    }
 
     state = "control";
   }
@@ -261,18 +277,20 @@ void loop() {
     OUT_data.check = checknum;
     esp_now_send(receiverAddress, (uint8_t *)&OUT_data, sizeof(OUT_data));
     Serial.println("Callback sent");
+    callbacktime = millis();
     state = "waitForCallback"; 
   }
 
   else if (state == "waitForCallback") {
+    esp_now_send(receiverAddress, (uint8_t *)&OUT_data, sizeof(OUT_data));
     sr.setAllLow();
     sr.set(5, HIGH);
-    
-    //Serial.print("checknum: ");
-    //Serial.println(checknum);
-    //Serial.print("IN_data.check: ");
-    //Serial.println(IN_data.check);
-    // TODO: wenn callback zu lange dauert, StatusLed setzen und Fehlerbehandlung
+
+    if (millis() - callbacktime > 1000) {
+      Serial.println("Callback fehlgeschlagen, Timeout");
+      state = "Error";
+      return;
+    }
 
     if (IN_data.check == checknum) {
       Serial.println("Check OK");
@@ -280,6 +298,25 @@ void loop() {
       Serial.print("Zeit vergangen: ");
       Serial.println(dauer);
       state = "fetch_Data";
+    }
+  }
+
+  else if (state == "Error") {
+    sr.setAllLow();
+    sr.set(6, HIGH);
+
+    // Alle Signale Aus
+    digitalWrite(BlinkerlinksPin, LOW);
+    digitalWrite(BlinkerRechtsPin, LOW);
+    digitalWrite(FernlichtPin, LOW);
+    digitalWrite(BremslichtPin, LOW);
+    ledcWrite(0, 0); // Motor vorwärts aus
+    ledcWrite(1, 0); // Motor rückwärts aus
+    myServo.write(90); // Servo auf Mittelstellung
+
+    while (1) {
+      Serial.println("Fehler");
+      delay(1000);
     }
   }
 }

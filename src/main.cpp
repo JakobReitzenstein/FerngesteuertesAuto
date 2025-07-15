@@ -4,6 +4,9 @@
 #include <ShiftRegister74HC595.h>
 #include "esp_random.h"
 
+// ****************************************************************
+// Definieren der Datenstrukturen welche mit ESP-NOW gesendet werden
+
 typedef struct struct_message_IN {
   int beschleunigung;
   int lenken;
@@ -17,6 +20,9 @@ typedef struct struct_message_IN {
 typedef struct struct_message_OUT {
   int check;
 } struct_message_OUT;
+
+// ****************************************************************
+// Definition der Variablen
 
 int beschleunigung;
 int lenken;
@@ -34,22 +40,24 @@ struct_message_OUT  OUT_data;
 Servo myServo;
 String state = "fetch_Data"; 
 
-// Receiver ESP32 MAC Address
+// ****************************************************************
+// MAC Address der Fernbedienung
 //uint8_t receiverAddress[] = {0xD4, 0x8A, 0xFC, 0x5F, 0xF2, 0x9C};  
 
 uint8_t receiverAddress[] = {0xFC, 0xB4, 0x67, 0xD1, 0x89, 0x70};  
 
-/* Pin denfinitionen: 
-  Servo Pin: GPIO 18
-  Motor Pin: GPIO 33
-  Blinker links Pin: GPIO 25
-  Blinker rechts Pin: GPIO 26
-  Fernlicht Pin: GPIO 4
-  Bremslicht Pin: GPIO 19
-  Abstandsensor Trigger Pin: GPIO 37
-  Abstandsensor Echo Pin: GPIO 35
-  Current check Pin: GPIO 34
-  Shift Register Pins: 
+// ****************************************************************
+/*  Pin denfinitionen: 
+    Servo Pin: GPIO 18
+    Motor Pin: GPIO 33
+    Blinker links Pin: GPIO 25
+    Blinker rechts Pin: GPIO 26
+    Fernlicht Pin: GPIO 4
+    Bremslicht Pin: GPIO 19
+    Abstandsensor Trigger Pin: GPIO 37
+    Abstandsensor Echo Pin: GPIO 35
+    Current check Pin: GPIO 34
+    Shift Register Pins: 
     GPIO 13 (Data), 
     GPIO 14 (Clock), 
     GPIO 16 (Latch)
@@ -67,12 +75,12 @@ int AbstandsensensorEchoPin = 35;
 int CCInPin = 34; 
 ShiftRegister74HC595<1> sr(14, 12, 13); // Data, Clock, Latch
 
-
-
-
+// ****************************************************************
+// Funktion, welche bei Einkommenden Daten aufgerufen werden
 
 void ONDataRecv(const uint8_t * mac, const uint8_t * incomingData, int len) {
   memcpy(&IN_data, incomingData, sizeof(IN_data));
+  dataValid = 1;
   /*Serial.print("Bytes received: ");
   Serial.println(len);
   Serial.print("Beschleunigung: ");
@@ -88,8 +96,10 @@ void ONDataRecv(const uint8_t * mac, const uint8_t * incomingData, int len) {
   Serial.print("hupe: ");
   Serial.println(IN_data.hupe);
   */
-  dataValid = 1;
 }
+
+// ****************************************************************
+// Funktionen zur Steuerung der verschiedenen Komponenten
 
 void lenkenControl() {
   /*
@@ -176,21 +186,23 @@ void tonControl() {
 
 }
 
+// ****************************************************************
+// Setup-Funktion, die einmalig beim Starten des Programms aufgerufen wird
+
 void setup() {
+  // Serielle Kommunikation starten
   Serial.begin(115200);
+  // Alle Status-LEds setzen
   sr.setAllHigh();
 
-  WiFi.mode(WIFI_STA);
-
+  // Initalisierung ESP-NOW
   Serial.println("Start");
-
+  WiFi.mode(WIFI_STA);
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
   }
   esp_now_register_recv_cb(esp_now_recv_cb_t(ONDataRecv));
-
-  // Register peer
   esp_now_peer_info_t peerInfo = {};
   memcpy(peerInfo.peer_addr, receiverAddress, 6);
   peerInfo.channel = 0;
@@ -201,15 +213,19 @@ void setup() {
     return;
   }
 
+  // Servo und Lichter initialisieren
   myServo.attach(servoPin);
   pinMode(BlinkerlinksPin, OUTPUT);
   pinMode(BlinkerRechtsPin, OUTPUT);
-
+  // Motor Pins initialisieren
   ledcSetup(0, 50, 8); // Channel 0, 50Hz frequency, 8-bit resolution
   ledcAttachPin(MotorVorPin, 0);
   ledcSetup(1, 50, 8); // Channel 1, 50Hz frequency, 8-bit resolution
   ledcAttachPin(MotorBackPin, 1);
 }
+
+// ****************************************************************
+// Loop-Funktion, die kontinuierlich aufgerufen wird
 
 void loop() {
   if (state == "initialize") {
@@ -245,7 +261,7 @@ void loop() {
   else if (state == "CURRENT_CHECK") {
     sr.setAllLow();
     sr.set(2, HIGH);
-    // Sebastians eingang checken, wenn >2 V dann alles Aus
+    // Current Check Eingang checken, wenn >2 V dann alles aus
     int currentCheck = analogReadMilliVolts(CCInPin);
     if (currentCheck > 2000) { 
       Serial.println("Current check failed, spannung >2");
@@ -271,6 +287,7 @@ void loop() {
   }
 
   else if (state == "sendcallback") {
+    // Cakllback Numer generieren und senden
     sr.setAllLow();
     sr.set(4, HIGH);
     checknum = esp_random();
@@ -282,6 +299,7 @@ void loop() {
   }
 
   else if (state == "waitForCallback") {
+    // Warten auf Callback von der Fernbedienung
     esp_now_send(receiverAddress, (uint8_t *)&OUT_data, sizeof(OUT_data));
     sr.setAllLow();
     sr.set(5, HIGH);
